@@ -1,0 +1,4 @@
+[submodule "src/hetersec-kernel"]
+	path = src/hetersec-kernel
+	url = https://github.com/ssrg-vt/popcorn-kernel.git
+	branch = HeterSec-kernel

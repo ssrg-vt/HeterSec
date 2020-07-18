@@ -26,9 +26,13 @@ loader.so: mvx_syscall.c
 	$(MUSL-CC) -shared -fPIC -o $@ $<
 
 clean:
-	rm -f $(TARGET)
+	rm -rf $(TARGET) build
+	make -C lighttpd distclean
 
 lighttpd:
+	mkdir -p build ; \
 	cd lighttpd ; \
-	CFLAGS='-fPIC' LDFLAGS="-pie" CC=/usr/local/musl/bin/musl-gcc ./configure --without-pcre --without-bzip2 --without-zlib ; \
-	make
+	CFLAGS='-fPIC' LDFLAGS="-pie" CC=/usr/local/musl/bin/musl-gcc ./configure \
+		--prefix=$(PWD)/build --without-pcre --without-bzip2 --without-zlib ; \
+	make -j4 ; \
+	make install

@@ -67,3 +67,9 @@ Message layer:
 We have pre-built the test cases for both multi-ISA MTD and MVX.
 
 ### Build test case by yourself
+#### Build MTD application binary
+
+#### Build MVX application binary
+1. Make sure the musl-libc is installed on both VMs (assume it is in `/usr/local/musl`)
+2. Clone the `HeterSec/test/mvx` to both VMs.
+3. run `make`

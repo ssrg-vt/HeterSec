@@ -6,7 +6,7 @@ MUSL-CC = $(PREFIX)$(MUSL-BIN)
 
 CFLAGS	= -std=gnu99
 
-TARGET = basic epoll tiny open loader.so
+TARGET = basic epoll tiny open loader.so lighttpd
 
 all: basic epoll tiny open loader.so
 

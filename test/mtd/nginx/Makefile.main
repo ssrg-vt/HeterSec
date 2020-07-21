@@ -1,0 +1,23 @@
+default: popcorn_build
+
+popcorn_build:
+	cp *.h objs/
+	mkdir -p objs/x86_objs/
+	mkdir -p objs/arm_objs/
+	cp Makefile.x86 objs/Makefile_x86
+	cp Makefile.arm objs/Makefile_arm
+	cp -Rvp objs/src/ objs/x86_objs/src
+	cp -Rvp objs/src/ objs/arm_objs/src
+	$(MAKE) -f objs/Makefile_x86
+	$(MAKE) -f objs/Makefile_arm
+
+aligned:
+	$(MAKE) -f objs/Makefile aligned
+
+post_process:
+	$(MAKE) -f objs/Makefile_arm post_process
+	cp objs/x86_objs/nginx_x86-64 .
+	cp objs/arm_objs/nginx_aarch64 .
+
+clean:
+	rm -rf Makefile objs

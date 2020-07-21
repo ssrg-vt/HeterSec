@@ -1,0 +1,1433 @@
+# FIXME directory of libgcc & libgcc_eh for aarch64 compiler
+ARM64_LIBGCC := $(shell dirname \
+                $(shell aarch64-linux-gnu-gcc -print-libgcc-file-name))
+
+CC         := $(POPCORN)/bin/clang
+CXX        := $(POPCORN)/bin/clang++
+#CFLAGS     := -O0 -Wall -nostdinc -g -target x86_64 -fno-common -popcorn-alignment
+CFLAGS     := -O0 -Wall -nostdinc -g -target aarch64 -fno-common -popcorn-alignment
+HET_CFLAGS := $(CFLAGS) -popcorn-migratable -fno-common \
+              -ftls-model=initial-exec
+#CFLAGS =  -pipe  -O -W -Wall -Wpointer-arith -Wno-unused-parameter -Werror -g 
+#CPP =	gcc -E
+#LD =	$(CC)
+IR := $(SRC:.c=.ll)
+
+# Linker
+LD      := $(POPCORN)/bin/ld.gold
+LDFLAGS := -z relro -z noexecstack --hash-style=gnu --build-id -static
+LIBS    := /lib/crt1.o \
+           /lib/libc.a \
+           /lib/libmigrate.a \
+           /lib/libstack-transform.a \
+           /lib/libelf.a \
+           /lib/libpthread.a \
+           /lib/libc.a \
+           /lib/libm.a
+LIBGCC  := --start-group -lgcc -lgcc_eh --end-group
+
+# Non Popcorn different architectures
+ARM_OBJ_DIR := arm_objs
+X86_OBJ_DIR := x86_objs
+
+X86_64_POPCORN  := $(POPCORN)/x86_64
+
+# Alignment
+ALIGN          := $(POPCORN)/bin/pyalign
+
+# Post-processing & checking
+POST_PROCESS   := $(POPCORN)/bin/gen-stackinfo
+ALIGN_CHECK    := $(POPCORN)/bin/check-align.py
+STACKMAP_CHECK := $(POPCORN)/bin/check-stackmaps
+
+###########
+# AArch64 #
+###########
+
+# Locations
+ARM64_POPCORN := $(POPCORN)/aarch64
+ARM64_BUILD   := build_aarch64
+
+# Generated files
+ARM64_ALIGNED     := objs/$(ARM_OBJ_DIR)/nginx_aarch64
+ARM64_VANILLA     := $(ARM64_BUILD)/$(ARM64_ALIGNED)
+ARM64_OBJ         := $(SRC:.c=.o)
+ARM64_MAP         := objs/$(ARM_OBJ_DIR)/$(ARM64_BUILD)/map.txt
+ARM64_LD_SCRIPT   := objs/$(ARM_OBJ_DIR)/$(ARM64_BUILD)/aligned_linker_script_arm.x
+ARM64_ALIGNED_MAP := objs/$(ARM_OBJ_DIR)/$(ARM64_BUILD)/aligned_map.txt
+
+# Flags
+ARM64_TARGET  := aarch64-linux-gnu
+ARM64_INC     := -isystem $(ARM64_POPCORN)/include
+#ARM64_INC     := -isystem $(X86_64_POPCORN)/include
+ARM64_LDFLAGS := -m aarch64linux -L$(ARM64_POPCORN)/lib -L$(ARM64_LIBGCC) \
+                 $(addprefix $(ARM64_POPCORN),$(LIBS)) $(LIBGCC)
+##########
+# x86-64 #
+##########
+
+# Locations
+X86_64_POPCORN  := $(POPCORN)/x86_64
+X86_64_BUILD    := build_x86-64
+X86_64_SD_BUILD := sd_x86-64
+
+# Generated files
+X86_64_ALIGNED     := objs/$(X86_OBJ_DIR)/nginx_x86-64
+X86_64_VANILLA     := $(X86_64_BUILD)/$(X86_64_ALIGNED)
+X86_64_OBJ         := $(SRC:.c=_x86_64.o)
+X86_64_MAP         := objs/$(X86_OBJ_DIR)/$(X86_64_BUILD)/map.txt
+X86_64_SD          := $(X86_64_SD_BUILD)/$(X86_64_ALIGNED)
+X86_64_SD_OBJ      := $(addprefix $(X86_64_SD_BUILD)/,$(SRC:.c=.o))
+X86_64_LD_SCRIPT   := objs/$(X86_OBJ_DIR)/$(X86_64_BUILD)/aligned_linker_script_x86.x
+X86_64_ALIGNED_MAP := objs/$(X86_OBJ_DIR)/$(X86_64_BUILD)/aligned_map.txt
+
+# Flags
+X86_64_TARGET  := x86_64-linux-gnu
+X86_64_INC     := -isystem $(X86_64_POPCORN)/include
+X86_64_LDFLAGS := -m elf_x86_64 -L$(X86_64_POPCORN)/lib \
+                  $(addprefix $(X86_64_POPCORN),$(LIBS)) \
+                  --start-group --end-group
+
+ALL_INCS = -I src/core \
+	-I src/event \
+	-I src/event/modules \
+	-I src/os/unix \
+	-I objs \
+	-I src/http \
+	-I src/http/modules \
+	-I src/mail
+
+
+CORE_DEPS = src/core/nginx.h \
+	src/core/ngx_config.h \
+	src/core/ngx_core.h \
+	src/core/ngx_log.h \
+	src/core/ngx_palloc.h \
+	src/core/ngx_array.h \
+	src/core/ngx_list.h \
+	src/core/ngx_hash.h \
+	src/core/ngx_buf.h \
+	src/core/ngx_queue.h \
+	src/core/ngx_string.h \
+	src/core/ngx_parse.h \
+	src/core/ngx_inet.h \
+	src/core/ngx_file.h \
+	src/core/ngx_crc.h \
+	src/core/ngx_crc32.h \
+	src/core/ngx_murmurhash.h \
+	src/core/ngx_md5.h \
+	src/core/ngx_sha1.h \
+	src/core/ngx_rbtree.h \
+	src/core/ngx_radix_tree.h \
+	src/core/ngx_slab.h \
+	src/core/ngx_times.h \
+	src/core/ngx_shmtx.h \
+	src/core/ngx_connection.h \
+	src/core/ngx_cycle.h \
+	src/core/ngx_conf_file.h \
+	src/core/ngx_resolver.h \
+	src/core/ngx_open_file_cache.h \
+	src/core/ngx_crypt.h \
+	src/event/ngx_event.h \
+	src/event/ngx_event_timer.h \
+	src/event/ngx_event_posted.h \
+	src/event/ngx_event_busy_lock.h \
+	src/event/ngx_event_connect.h \
+	src/event/ngx_event_pipe.h \
+	src/os/unix/ngx_time.h \
+	src/os/unix/ngx_errno.h \
+	src/os/unix/ngx_alloc.h \
+	src/os/unix/ngx_files.h \
+	src/os/unix/ngx_channel.h \
+	src/os/unix/ngx_shmem.h \
+	src/os/unix/ngx_process.h \
+	src/os/unix/ngx_setaffinity.h \
+	src/os/unix/ngx_setproctitle.h \
+	src/os/unix/ngx_atomic.h \
+	src/os/unix/ngx_gcc_atomic_x86.h \
+	src/os/unix/ngx_thread.h \
+	src/os/unix/ngx_socket.h \
+	src/os/unix/ngx_os.h \
+	src/os/unix/ngx_user.h \
+	src/os/unix/ngx_process_cycle.h \
+	src/os/unix/ngx_linux_config.h \
+	src/os/unix/ngx_linux.h \
+	objs/ngx_auto_config.h
+
+
+CORE_INCS = $(ARM64_INC) \
+	-I src/core \
+	-I src/event \
+	-I src/event/modules \
+	-I src/os/unix \
+	-I objs
+
+#CORE_INCS = $(X86_64_INC) \
+	-I src/core \
+	-I src/event \
+	-I src/event/modules \
+	-I src/os/unix \
+	-I objs
+
+
+HTTP_DEPS = src/http/ngx_http.h \
+	src/http/ngx_http_request.h \
+	src/http/ngx_http_config.h \
+	src/http/ngx_http_core_module.h \
+	src/http/ngx_http_cache.h \
+	src/http/ngx_http_variables.h \
+	src/http/ngx_http_script.h \
+	src/http/ngx_http_upstream.h \
+	src/http/ngx_http_upstream_round_robin.h \
+	src/http/ngx_http_busy_lock.h \
+	src/http/modules/ngx_http_ssi_filter_module.h
+
+ARM_64_BUILD = build_aarch64
+HTTP_INCS = -I src/http \
+	-I src/http/modules
+
+#all: objs/$(ARM_OBJ_DIR)/nginx objs/$(X86_OBJ_DIR)/nginx
+#	echo "Make all"
+
+objs/$(ARM_OBJ_DIR)/nginx: objs/$(ARM_OBJ_DIR)/$(ARM_64_BUILD)/.dir \
+        objs/$(ARM_OBJ_DIR)/src/core/nginx.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_log.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_palloc.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_array.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_list.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_hash.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_buf.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_queue.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_output_chain.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_string.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_parse.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_inet.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_file.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_crc32.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_murmurhash.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_md5.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_rbtree.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_radix_tree.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_slab.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_times.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_shmtx.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_connection.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_cycle.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_spinlock.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_cpuinfo.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_conf_file.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_resolver.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_open_file_cache.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_crypt.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_timer.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_posted.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_busy_lock.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_accept.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_connect.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_pipe.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_time.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_errno.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_alloc.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_files.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_socket.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_recv.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_readv_chain.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_udp_recv.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_send.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_writev_chain.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_channel.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_shmem.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_process.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_daemon.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_setaffinity.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_setproctitle.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_posix_init.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_user.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_process_cycle.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_linux_init.o \
+	objs/$(ARM_OBJ_DIR)/src/event/modules/ngx_epoll_module.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_linux_sendfile_chain.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_core_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_special_response.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_request.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_parse.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_header_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_write_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_copy_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_log_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_request_body.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_variables.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_script.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_upstream.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_upstream_round_robin.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_parse_time.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_static_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_index_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_chunked_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_range_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_headers_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_not_modified_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_busy_lock.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_file_cache.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_postpone_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_ssi_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_charset_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_userid_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_autoindex_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_auth_basic_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_access_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_limit_conn_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_limit_req_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_geo_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_map_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_split_clients_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_referer_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_proxy_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_fastcgi_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_uwsgi_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_scgi_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_memcached_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_empty_gif_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_browser_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_upstream_ip_hash_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_upstream_least_conn_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_upstream_keepalive_module.o \
+	objs/$(ARM_OBJ_DIR)/ngx_modules.o \
+
+	$(LD) -o objs/$(ARM_OBJ_DIR)/nginx \
+	objs/$(ARM_OBJ_DIR)/src/core/nginx.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_log.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_palloc.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_array.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_list.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_hash.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_buf.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_queue.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_output_chain.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_string.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_parse.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_inet.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_file.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_crc32.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_murmurhash.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_md5.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_rbtree.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_radix_tree.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_slab.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_times.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_shmtx.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_connection.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_cycle.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_spinlock.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_cpuinfo.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_conf_file.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_resolver.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_open_file_cache.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_crypt.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_timer.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_posted.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_busy_lock.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_accept.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_connect.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_pipe.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_time.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_errno.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_alloc.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_files.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_socket.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_recv.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_readv_chain.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_udp_recv.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_send.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_writev_chain.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_channel.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_shmem.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_process.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_daemon.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_setaffinity.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_setproctitle.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_posix_init.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_user.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_process_cycle.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_linux_init.o \
+	objs/$(ARM_OBJ_DIR)/src/event/modules/ngx_epoll_module.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_linux_sendfile_chain.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_core_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_special_response.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_request.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_parse.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_header_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_write_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_copy_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_log_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_request_body.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_variables.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_script.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_upstream.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_upstream_round_robin.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_parse_time.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_static_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_index_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_chunked_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_range_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_headers_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_not_modified_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_busy_lock.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_file_cache.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_postpone_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_ssi_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_charset_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_userid_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_autoindex_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_auth_basic_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_access_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_limit_conn_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_limit_req_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_geo_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_map_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_split_clients_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_referer_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_proxy_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_fastcgi_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_uwsgi_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_scgi_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_memcached_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_empty_gif_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_browser_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_upstream_ip_hash_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_upstream_least_conn_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_upstream_keepalive_module.o \
+	objs/$(ARM_OBJ_DIR)/ngx_modules.o \
+	$(LDFLAGS) $(ARM64_LDFLAGS) -Map $(ARM64_MAP)
+
+
+post_process: $(ARM64_ALIGNED) $(X86_64_ALIGNED)
+	@echo " [POST_PROCESS] $^"
+	@$(POST_PROCESS) -f $(ARM64_ALIGNED)
+	@$(POST_PROCESS) -f $(X86_64_ALIGNED)
+
+aligned: $(ARM64_ALIGNED) $(X86_64_ALIGNED)
+
+$(X86_64_ALIGNED): $(X86_64_LD_SCRIPT)
+	@echo " [LD] $@ (aligned)"
+	@$(LD) -o $@ \
+	objs/$(X86_OBJ_DIR)/src/core/nginx.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_log.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_palloc.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_array.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_list.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_hash.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_buf.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_queue.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_output_chain.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_string.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_parse.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_inet.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_file.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_crc32.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_murmurhash.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_md5.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_rbtree.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_radix_tree.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_slab.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_times.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_shmtx.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_connection.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_cycle.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_spinlock.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_cpuinfo.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_conf_file.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_resolver.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_open_file_cache.o \
+	objs/$(X86_OBJ_DIR)/src/core/ngx_crypt.o \
+	objs/$(X86_OBJ_DIR)/src/event/ngx_event.o \
+	objs/$(X86_OBJ_DIR)/src/event/ngx_event_timer.o \
+	objs/$(X86_OBJ_DIR)/src/event/ngx_event_posted.o \
+	objs/$(X86_OBJ_DIR)/src/event/ngx_event_busy_lock.o \
+	objs/$(X86_OBJ_DIR)/src/event/ngx_event_accept.o \
+	objs/$(X86_OBJ_DIR)/src/event/ngx_event_connect.o \
+	objs/$(X86_OBJ_DIR)/src/event/ngx_event_pipe.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_time.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_errno.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_alloc.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_files.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_socket.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_recv.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_readv_chain.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_udp_recv.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_send.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_writev_chain.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_channel.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_shmem.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_process.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_daemon.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_setaffinity.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_setproctitle.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_posix_init.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_user.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_process_cycle.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_linux_init.o \
+	objs/$(X86_OBJ_DIR)/src/event/modules/ngx_epoll_module.o \
+	objs/$(X86_OBJ_DIR)/src/os/unix/ngx_linux_sendfile_chain.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_core_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_special_response.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_request.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_parse.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_header_filter_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_write_filter_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_copy_filter_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_log_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_request_body.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_variables.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_script.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_upstream.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_upstream_round_robin.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_parse_time.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_static_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_index_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_chunked_filter_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_range_filter_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_headers_filter_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_not_modified_filter_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_busy_lock.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_file_cache.o \
+	objs/$(X86_OBJ_DIR)/src/http/ngx_http_postpone_filter_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_ssi_filter_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_charset_filter_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_userid_filter_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_autoindex_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_auth_basic_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_access_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_limit_conn_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_limit_req_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_geo_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_map_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_split_clients_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_referer_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_proxy_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_fastcgi_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_uwsgi_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_scgi_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_memcached_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_empty_gif_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_browser_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_upstream_ip_hash_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_upstream_least_conn_module.o \
+	objs/$(X86_OBJ_DIR)/src/http/modules/ngx_http_upstream_keepalive_module.o \
+	objs/$(X86_OBJ_DIR)/ngx_modules.o \
+	$(LDFLAGS) $(X86_64_LDFLAGS) -Map $(X86_64_ALIGNED_MAP) -T $<
+
+$(ARM64_ALIGNED): $(ARM64_LD_SCRIPT)
+	@echo " [LD] $@ (aligned)"
+	@$(LD) -o $@ \
+	objs/$(ARM_OBJ_DIR)/src/core/nginx.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_log.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_palloc.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_array.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_list.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_hash.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_buf.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_queue.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_output_chain.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_string.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_parse.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_inet.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_file.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_crc32.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_murmurhash.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_md5.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_rbtree.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_radix_tree.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_slab.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_times.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_shmtx.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_connection.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_cycle.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_spinlock.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_cpuinfo.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_conf_file.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_resolver.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_open_file_cache.o \
+	objs/$(ARM_OBJ_DIR)/src/core/ngx_crypt.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_timer.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_posted.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_busy_lock.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_accept.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_connect.o \
+	objs/$(ARM_OBJ_DIR)/src/event/ngx_event_pipe.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_time.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_errno.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_alloc.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_files.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_socket.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_recv.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_readv_chain.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_udp_recv.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_send.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_writev_chain.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_channel.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_shmem.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_process.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_daemon.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_setaffinity.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_setproctitle.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_posix_init.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_user.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_process_cycle.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_linux_init.o \
+	objs/$(ARM_OBJ_DIR)/src/event/modules/ngx_epoll_module.o \
+	objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_linux_sendfile_chain.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_core_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_special_response.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_request.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_parse.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_header_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_write_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_copy_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_log_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_request_body.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_variables.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_script.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_upstream.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_upstream_round_robin.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_parse_time.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_static_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_index_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_chunked_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_range_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_headers_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_not_modified_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_busy_lock.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_file_cache.o \
+	objs/$(ARM_OBJ_DIR)/src/http/ngx_http_postpone_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_ssi_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_charset_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_userid_filter_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_autoindex_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_auth_basic_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_access_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_limit_conn_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_limit_req_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_geo_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_map_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_split_clients_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_referer_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_proxy_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_fastcgi_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_uwsgi_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_scgi_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_memcached_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_empty_gif_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_browser_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_upstream_ip_hash_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_upstream_least_conn_module.o \
+	objs/$(ARM_OBJ_DIR)/src/http/modules/ngx_http_upstream_keepalive_module.o \
+	objs/$(ARM_OBJ_DIR)/ngx_modules.o \
+	$(LDFLAGS) $(ARM64_LDFLAGS) -Map $(ARM64_ALIGNED_MAP) -T $<
+
+$(ARM64_LD_SCRIPT):
+	@echo " [ALIGN] $@"
+	@$(ALIGN) --compiler-inst $(POPCORN) \
+		--x86-bin objs/$(X86_OBJ_DIR)/nginx --arm-bin objs/$(ARM_OBJ_DIR)/nginx \
+		--x86-map $(X86_64_MAP) --arm-map $(ARM64_MAP) \
+		--output-x86-ls $(X86_64_LD_SCRIPT)	--output-arm-ls $(ARM64_LD_SCRIPT)
+
+$(X86_64_LD_SCRIPT): $(ARM64_LD_SCRIPT)
+	@echo " [ALIGN] $@"
+
+objs/%/ngx_modules.o:	$(CORE_DEPS) \
+	objs/ngx_modules.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		objs/ngx_modules.c
+
+#objs/%/src/core/nginx.o:	$(CORE_DEPS) \
+#	src/core/nginx.c
+#	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+#		-o $@ \
+#		src/core/nginx.c
+objs/%/src/core/nginx.o:	$(CORE_DEPS) \
+	src/core/nginx.c
+	$(CC) -c $(HET_CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/nginx.c
+#		cp objs/$(ARM_OBJ_DIR)/src/os/unix/nginx_aarch64.o objs/$(ARM_OBJ_DIR)/src/os/unix/nginx.o
+		cp objs/arm_objs/src/core/nginx_aarch64.o objs/arm_objs/src/core/nginx.o
+
+objs/%/src/core/ngx_log.o:	$(CORE_DEPS) \
+	src/core/ngx_log.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_log.c
+
+objs/%/src/core/ngx_palloc.o:	$(CORE_DEPS) \
+	src/core/ngx_palloc.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_palloc.c
+
+objs/%/src/core/ngx_array.o:	$(CORE_DEPS) \
+	src/core/ngx_array.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_array.c
+
+objs/%/src/core/ngx_list.o:	$(CORE_DEPS) \
+	src/core/ngx_list.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_list.c
+
+objs/%/src/core/ngx_hash.o:	$(CORE_DEPS) \
+	src/core/ngx_hash.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_hash.c
+
+objs/%/src/core/ngx_buf.o:	$(CORE_DEPS) \
+	src/core/ngx_buf.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_buf.c
+
+objs/%/src/core/ngx_queue.o:	$(CORE_DEPS) \
+	src/core/ngx_queue.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_queue.c
+
+objs/%/src/core/ngx_output_chain.o:	$(CORE_DEPS) \
+	src/core/ngx_output_chain.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_output_chain.c
+
+objs/%/src/core/ngx_string.o:	$(CORE_DEPS) \
+	src/core/ngx_string.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_string.c
+
+objs/%/src/core/ngx_parse.o:	$(CORE_DEPS) \
+	src/core/ngx_parse.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_parse.c
+
+objs/%/src/core/ngx_inet.o:	$(CORE_DEPS) \
+	src/core/ngx_inet.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_inet.c
+
+objs/%/src/core/ngx_file.o:	$(CORE_DEPS) \
+	src/core/ngx_file.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_file.c
+
+objs/%/src/core/ngx_crc32.o:	$(CORE_DEPS) \
+	src/core/ngx_crc32.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_crc32.c
+
+objs/%/src/core/ngx_murmurhash.o:	$(CORE_DEPS) \
+	src/core/ngx_murmurhash.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_murmurhash.c
+
+objs/%/src/core/ngx_md5.o:	$(CORE_DEPS) \
+	src/core/ngx_md5.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_md5.c
+
+objs/%/src/core/ngx_rbtree.o:	$(CORE_DEPS) \
+	src/core/ngx_rbtree.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_rbtree.c
+
+objs/%/src/core/ngx_radix_tree.o:	$(CORE_DEPS) \
+	src/core/ngx_radix_tree.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_radix_tree.c
+
+objs/%/src/core/ngx_slab.o:	$(CORE_DEPS) \
+	src/core/ngx_slab.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_slab.c
+
+objs/%/src/core/ngx_times.o:	$(CORE_DEPS) \
+	src/core/ngx_times.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_times.c
+
+objs/%/src/core/ngx_shmtx.o:	$(CORE_DEPS) \
+	src/core/ngx_shmtx.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_shmtx.c
+
+objs/%/src/core/ngx_connection.o:	$(CORE_DEPS) \
+	src/core/ngx_connection.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_connection.c
+
+objs/%/src/core/ngx_cycle.o:	$(CORE_DEPS) \
+	src/core/ngx_cycle.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_cycle.c
+
+objs/%/src/core/ngx_spinlock.o:	$(CORE_DEPS) \
+	src/core/ngx_spinlock.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_spinlock.c
+
+objs/%/src/core/ngx_cpuinfo.o:	$(CORE_DEPS) \
+	src/core/ngx_cpuinfo.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_cpuinfo.c
+
+objs/%/src/core/ngx_conf_file.o:	$(CORE_DEPS) \
+	src/core/ngx_conf_file.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_conf_file.c
+
+objs/%/src/core/ngx_resolver.o:	$(CORE_DEPS) \
+	src/core/ngx_resolver.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_resolver.c
+
+objs/%/src/core/ngx_open_file_cache.o:	$(CORE_DEPS) \
+	src/core/ngx_open_file_cache.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_open_file_cache.c
+
+objs/%/src/core/ngx_crypt.o:	$(CORE_DEPS) \
+	src/core/ngx_crypt.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/core/ngx_crypt.c
+
+#objs/%/src/event/ngx_event.o:	$(CORE_DEPS) \
+#	src/event/ngx_event.c
+#	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+#		-o $@ \
+#		src/event/ngx_event.c
+objs/%/src/event/ngx_event.o:	$(CORE_DEPS) \
+	src/event/ngx_event.c
+	$(CC) -c $(HET_CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/event/ngx_event.c
+		cp objs/$(ARM_OBJ_DIR)/src/event/ngx_event_aarch64.o objs/$(ARM_OBJ_DIR)/src/event/ngx_event.o
+
+objs/%/src/event/ngx_event_timer.o:	$(CORE_DEPS) \
+	src/event/ngx_event_timer.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/event/ngx_event_timer.c
+
+objs/%/src/event/ngx_event_posted.o:	$(CORE_DEPS) \
+	src/event/ngx_event_posted.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/event/ngx_event_posted.c
+
+objs/%/src/event/ngx_event_busy_lock.o:	$(CORE_DEPS) \
+	src/event/ngx_event_busy_lock.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/event/ngx_event_busy_lock.c
+
+objs/%/src/event/ngx_event_accept.o:	$(CORE_DEPS) \
+	src/event/ngx_event_accept.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/event/ngx_event_accept.c
+
+objs/%/src/event/ngx_event_connect.o:	$(CORE_DEPS) \
+	src/event/ngx_event_connect.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/event/ngx_event_connect.c
+
+objs/%/src/event/ngx_event_pipe.o:	$(CORE_DEPS) \
+	src/event/ngx_event_pipe.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/event/ngx_event_pipe.c
+
+objs/%/src/os/unix/ngx_time.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_time.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_time.c
+
+objs/%/src/os/unix/ngx_errno.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_errno.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_errno.c
+
+objs/%/src/os/unix/ngx_alloc.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_alloc.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_alloc.c
+
+objs/%/src/os/unix/ngx_files.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_files.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_files.c
+
+objs/%/src/os/unix/ngx_socket.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_socket.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_socket.c
+
+objs/%/src/os/unix/ngx_recv.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_recv.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_recv.c
+
+objs/%/src/os/unix/ngx_readv_chain.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_readv_chain.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_readv_chain.c
+
+objs/%/src/os/unix/ngx_udp_recv.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_udp_recv.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_udp_recv.c
+
+objs/%/src/os/unix/ngx_send.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_send.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_send.c
+
+objs/%/src/os/unix/ngx_writev_chain.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_writev_chain.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_writev_chain.c
+
+objs/%/src/os/unix/ngx_channel.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_channel.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_channel.c
+
+objs/%/src/os/unix/ngx_shmem.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_shmem.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_shmem.c
+
+#objs/%/src/os/unix/ngx_process.o:	$(CORE_DEPS) \
+#	src/os/unix/ngx_process.c
+#	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+#		-o $@ \
+#		src/os/unix/ngx_process.c
+objs/%/src/os/unix/ngx_process.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_process.c
+	$(CC) -c $(HET_CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_process.c
+		cp objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_process_aarch64.o objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_process.o
+
+objs/%/src/os/unix/ngx_daemon.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_daemon.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_daemon.c
+
+objs/%/src/os/unix/ngx_setaffinity.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_setaffinity.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_setaffinity.c
+
+objs/%/src/os/unix/ngx_setproctitle.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_setproctitle.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_setproctitle.c
+
+objs/%/src/os/unix/ngx_posix_init.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_posix_init.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_posix_init.c
+
+objs/%/src/os/unix/ngx_user.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_user.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_user.c
+
+#objs/%/src/os/unix/ngx_process_cycle.o:	$(CORE_DEPS) \
+#	src/os/unix/ngx_process_cycle.c
+#	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+#		-o $@ \
+#		src/os/unix/ngx_process_cycle.c
+objs/%/src/os/unix/ngx_process_cycle.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_process_cycle.c
+	$(CC) -c $(HET_CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_process_cycle.c
+		cp objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_process_cycle_aarch64.o objs/$(ARM_OBJ_DIR)/src/os/unix/ngx_process_cycle.o
+
+objs/%/src/os/unix/ngx_linux_init.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_linux_init.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_linux_init.c
+
+objs/%/src/event/modules/ngx_epoll_module.o:	$(CORE_DEPS) \
+	src/event/modules/ngx_epoll_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/event/modules/ngx_epoll_module.c
+#objs/%/src/event/modules/ngx_epoll_module.o:	$(CORE_DEPS) \
+#	src/event/modules/ngx_epoll_module.c
+#	$(CC) -c $(HET_CFLAGS) $(CORE_INCS) \
+#		-o $@ \
+#		src/event/modules/ngx_epoll_module.c
+
+objs/%/src/os/unix/ngx_linux_sendfile_chain.o:	$(CORE_DEPS) \
+	src/os/unix/ngx_linux_sendfile_chain.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) \
+		-o $@ \
+		src/os/unix/ngx_linux_sendfile_chain.c
+
+objs/%/src/http/ngx_http.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http.c
+
+
+objs/%/src/http/ngx_http_core_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_core_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_core_module.c
+#objs/%/src/http/ngx_http_core_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+#	src/http/ngx_http_core_module.c
+#	$(CC) -c $(HET_CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+#		-o $@ \
+#		src/http/ngx_http_core_module.c
+
+
+objs/%/src/http/ngx_http_special_response.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_special_response.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_special_response.c
+
+
+objs/%/src/http/ngx_http_request.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_request.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_request.c
+#objs/%/src/http/ngx_http_request.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+#	src/http/ngx_http_request.c
+#	$(CC) -c $(HET_CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+#		-o $@ \
+#		src/http/ngx_http_request.c
+
+
+objs/%/src/http/ngx_http_parse.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_parse.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_parse.c
+
+
+objs/%/src/http/ngx_http_header_filter_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_header_filter_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_header_filter_module.c
+
+
+objs/%/src/http/ngx_http_write_filter_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_write_filter_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_write_filter_module.c
+
+
+objs/%/src/http/ngx_http_copy_filter_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_copy_filter_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_copy_filter_module.c
+
+
+objs/%/src/http/modules/ngx_http_log_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_log_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_log_module.c
+
+
+objs/%/src/http/ngx_http_request_body.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_request_body.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_request_body.c
+#objs/%/src/http/ngx_http_request_body.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+#	src/http/ngx_http_request_body.c
+#	$(CC) -c $(HET_CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+#		-o $@ \
+#		src/http/ngx_http_request_body.c
+
+
+objs/%/src/http/ngx_http_variables.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_variables.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_variables.c
+
+
+objs/%/src/http/ngx_http_script.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_script.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_script.c
+
+
+objs/%/src/http/ngx_http_upstream.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_upstream.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_upstream.c
+
+
+objs/%/src/http/ngx_http_upstream_round_robin.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_upstream_round_robin.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_upstream_round_robin.c
+
+
+objs/%/src/http/ngx_http_parse_time.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_parse_time.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_parse_time.c
+
+
+objs/%/src/http/modules/ngx_http_static_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_static_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_static_module.c
+#objs/%/src/http/modules/ngx_http_static_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+#	src/http/modules/ngx_http_static_module.c
+#	$(CC) -c $(HET_CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+#		-o $@ \
+#		src/http/modules/ngx_http_static_module.c
+
+
+objs/%/src/http/modules/ngx_http_index_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_index_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_index_module.c
+#objs/%/src/http/modules/ngx_http_index_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+#	src/http/modules/ngx_http_index_module.c
+#	$(CC) -c $(HET_CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+#		-o $@ \
+#		src/http/modules/ngx_http_index_module.c
+
+
+objs/%/src/http/modules/ngx_http_chunked_filter_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_chunked_filter_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_chunked_filter_module.c
+
+
+objs/%/src/http/modules/ngx_http_range_filter_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_range_filter_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_range_filter_module.c
+
+
+objs/%/src/http/modules/ngx_http_headers_filter_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_headers_filter_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_headers_filter_module.c
+
+
+objs/%/src/http/modules/ngx_http_not_modified_filter_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_not_modified_filter_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_not_modified_filter_module.c
+
+
+objs/%/src/http/ngx_http_busy_lock.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_busy_lock.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_busy_lock.c
+
+
+objs/%/src/http/ngx_http_file_cache.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_file_cache.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_file_cache.c
+
+
+objs/%/src/http/ngx_http_postpone_filter_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/ngx_http_postpone_filter_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/ngx_http_postpone_filter_module.c
+
+
+objs/%/src/http/modules/ngx_http_ssi_filter_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_ssi_filter_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_ssi_filter_module.c
+
+
+objs/%/src/http/modules/ngx_http_charset_filter_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_charset_filter_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_charset_filter_module.c
+
+
+objs/%/src/http/modules/ngx_http_userid_filter_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_userid_filter_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_userid_filter_module.c
+
+
+objs/%/src/http/modules/ngx_http_autoindex_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_autoindex_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_autoindex_module.c
+
+
+objs/%/src/http/modules/ngx_http_auth_basic_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_auth_basic_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_auth_basic_module.c
+
+
+objs/%/src/http/modules/ngx_http_access_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_access_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_access_module.c
+
+
+objs/%/src/http/modules/ngx_http_limit_conn_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_limit_conn_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_limit_conn_module.c
+
+
+objs/%/src/http/modules/ngx_http_limit_req_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_limit_req_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_limit_req_module.c
+
+
+objs/%/src/http/modules/ngx_http_geo_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_geo_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_geo_module.c
+
+
+objs/%/src/http/modules/ngx_http_map_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_map_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_map_module.c
+
+
+objs/%/src/http/modules/ngx_http_split_clients_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_split_clients_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_split_clients_module.c
+
+
+objs/%/src/http/modules/ngx_http_referer_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_referer_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_referer_module.c
+
+
+objs/%/src/http/modules/ngx_http_proxy_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_proxy_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_proxy_module.c
+
+
+objs/%/src/http/modules/ngx_http_fastcgi_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_fastcgi_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_fastcgi_module.c
+
+
+objs/%/src/http/modules/ngx_http_uwsgi_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_uwsgi_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_uwsgi_module.c
+
+
+objs/%/src/http/modules/ngx_http_scgi_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_scgi_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_scgi_module.c
+
+
+objs/%/src/http/modules/ngx_http_memcached_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_memcached_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_memcached_module.c
+
+
+objs/%/src/http/modules/ngx_http_empty_gif_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_empty_gif_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_empty_gif_module.c
+
+
+objs/%/src/http/modules/ngx_http_browser_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_browser_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_browser_module.c
+
+
+objs/%/src/http/modules/ngx_http_upstream_ip_hash_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_upstream_ip_hash_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_upstream_ip_hash_module.c
+
+
+objs/%/src/http/modules/ngx_http_upstream_least_conn_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_upstream_least_conn_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_upstream_least_conn_module.c
+
+
+objs/%/src/http/modules/ngx_http_upstream_keepalive_module.o:	$(CORE_DEPS) $(HTTP_DEPS) \
+	src/http/modules/ngx_http_upstream_keepalive_module.c
+	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
+		-o $@ \
+		src/http/modules/ngx_http_upstream_keepalive_module.c
+
+manpage:	objs/nginx.8
+
+check_stack:
+	$(STACKMAP_CHECK) -a $(ARM64_ALIGNED) -x $(X86_64_ALIGNED)
+
+check_align:
+	$(ALIGN_CHECK) $(ARM64_ALIGNED) $(X86_64_ALIGNED)
+
+
+%.dir:
+	@echo " [MKDIR] $*"
+	@mkdir -p $*
+	@touch $@
+
+objs/nginx.8:	man/nginx.8 objs/ngx_auto_config.h
+	sed -e "s|%%PREFIX%%|/usr/local/nginx|" \
+		-e "s|%%PID_PATH%%|/usr/local/nginx/logs/nginx.pid|" \
+		-e "s|%%CONF_PATH%%|/usr/local/nginx/conf/nginx.conf|" \
+		-e "s|%%ERROR_LOG_PATH%%|/usr/local/nginx/logs/error.log|" \
+		< man/nginx.8 > $@
+
+install:	objs/nginx 		
+	test -d '$(DESTDIR)/usr/local/nginx' || mkdir -p '$(DESTDIR)/usr/local/nginx'
+
+	test -d '$(DESTDIR)/usr/local/nginx/sbin' 		|| mkdir -p '$(DESTDIR)/usr/local/nginx/sbin'
+	test ! -f '$(DESTDIR)/usr/local/nginx/sbin/nginx' 		|| mv '$(DESTDIR)/usr/local/nginx/sbin/nginx' 			'$(DESTDIR)/usr/local/nginx/sbin/nginx.old'
+	cp objs/nginx '$(DESTDIR)/usr/local/nginx/sbin/nginx'
+
+	test -d '$(DESTDIR)/usr/local/nginx/conf' 		|| mkdir -p '$(DESTDIR)/usr/local/nginx/conf'
+
+	cp conf/koi-win '$(DESTDIR)/usr/local/nginx/conf'
+	cp conf/koi-utf '$(DESTDIR)/usr/local/nginx/conf'
+	cp conf/win-utf '$(DESTDIR)/usr/local/nginx/conf'
+
+	test -f '$(DESTDIR)/usr/local/nginx/conf/mime.types' 		|| cp conf/mime.types '$(DESTDIR)/usr/local/nginx/conf'
+	cp conf/mime.types '$(DESTDIR)/usr/local/nginx/conf/mime.types.default'
+
+	test -f '$(DESTDIR)/usr/local/nginx/conf/fastcgi_params' 		|| cp conf/fastcgi_params '$(DESTDIR)/usr/local/nginx/conf'
+	cp conf/fastcgi_params 		'$(DESTDIR)/usr/local/nginx/conf/fastcgi_params.default'
+
+	test -f '$(DESTDIR)/usr/local/nginx/conf/fastcgi.conf' 		|| cp conf/fastcgi.conf '$(DESTDIR)/usr/local/nginx/conf'
+	cp conf/fastcgi.conf '$(DESTDIR)/usr/local/nginx/conf/fastcgi.conf.default'
+
+	test -f '$(DESTDIR)/usr/local/nginx/conf/uwsgi_params' 		|| cp conf/uwsgi_params '$(DESTDIR)/usr/local/nginx/conf'
+	cp conf/uwsgi_params 		'$(DESTDIR)/usr/local/nginx/conf/uwsgi_params.default'
+
+	test -f '$(DESTDIR)/usr/local/nginx/conf/scgi_params' 		|| cp conf/scgi_params '$(DESTDIR)/usr/local/nginx/conf'
+	cp conf/scgi_params 		'$(DESTDIR)/usr/local/nginx/conf/scgi_params.default'
+
+	test -f '$(DESTDIR)/usr/local/nginx/conf/nginx.conf' 		|| cp conf/nginx.conf '$(DESTDIR)/usr/local/nginx/conf/nginx.conf'
+	cp conf/nginx.conf '$(DESTDIR)/usr/local/nginx/conf/nginx.conf.default'
+
+	test -d '$(DESTDIR)/usr/local/nginx/logs' 		|| mkdir -p '$(DESTDIR)/usr/local/nginx/logs'
+
+	test -d '$(DESTDIR)/usr/local/nginx/logs' || 		mkdir -p '$(DESTDIR)/usr/local/nginx/logs'
+
+	test -d '$(DESTDIR)/usr/local/nginx/html' 		|| cp -R html '$(DESTDIR)/usr/local/nginx'
+
+	test -d '$(DESTDIR)/usr/local/nginx/logs' || 		mkdir -p '$(DESTDIR)/usr/local/nginx/logs'

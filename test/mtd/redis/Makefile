@@ -1,5 +1,5 @@
 # Popcorn compiler location
-POPCORN := /usr/local/popcorn-hs
+POPCORN := /usr/local/popcorn
 export
 
 default: all

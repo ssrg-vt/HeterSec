@@ -1,0 +1,10 @@
+STD=-std=c11 -pedantic -DREDIS_STATIC=
+WARN=-Wall -W -Wno-missing-field-initializers
+OPT=-O2
+MALLOC=libc
+CFLAGS=-O0 -Wall -nostdinc -g -target x86_64
+LDFLAGS=-z relro -z noexecstack --hash-style=gnu --build-id -static
+REDIS_CFLAGS=
+REDIS_LDFLAGS=
+PREV_FINAL_CFLAGS=-O0 -Wall -nostdinc -g -target x86_64 -I../deps/hiredis -I../deps/linenoise -I../deps/lua/src
+PREV_FINAL_LDFLAGS=-z relro -z noexecstack --hash-style=gnu --build-id -static -g -ggdb -rdynamic

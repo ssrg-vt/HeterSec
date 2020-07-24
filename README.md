@@ -1,4 +1,4 @@
-# HeterSec
+# HeterSec - Software diversification using ISA heterogeneity
 ---
 ## Overview
 HeterSec is a framework that enables application software diversification using ISA heterogeneity. It runs diversified processes on top of off-the-shelf commodity machines of different ISAs (e.g., x86-64, AArch64). HeterSec hides the complex differences between ISAs including that between instructions, memory layout, registers, and ABIs, among others, and makes it easier to build and launch ISA-diversified application instances. To demonstrate HeterSec's objectives, the project has developed prototypes of two techniques that use ISA heterogeneity for software diversification as proofs-of-concept: multi-ISA-based moving target defense (MTD) and multi-ISA-based multi-version execution (MVX).
@@ -25,6 +25,7 @@ Follow this [link](https://github.com/ssrg-vt/popcorn-kernel/wiki/VM-Setup#set-u
 
 ---
 ## Setup
+### Build the kernels
 Clone the souce code:
 ```
 $ git clone --recursive https://github.com/ssrg-vt/HeterSec.git
@@ -39,9 +40,10 @@ Build the x86_64 kernel and arm64 kernel respectively:
 $ cp hetersec-kernel/kernel/popcorn/configs/config-x86_64-qemu hetersec-kernel/.config
 $ make -C hetersec-kernel -j8
 $ cp hetersec-kernel-arm64/kernel/popcorn/configs/config-arm64-qemu hetersec-kernel-arm64/.config
-$ make -C hetersec-kernel-arm64 -j8
+$ ARCH="arm64" make -C hetersec-kernel-arm64 -j8
 ```
 
+### Boot the VMs
 Boot the VMs with newly built kernel:
 ```
 $ sudo qemu-system-x86_64 \
@@ -49,7 +51,8 @@ $ sudo qemu-system-x86_64 \
     -drive id=root,media=disk,file=x86.img \
     -net nic,macaddr=00:da:bc:de:00:13 -net tap \
     -kernel hetersec-kernel/arch/x86/boot/bzImage \
-    -append "root=/dev/sda1 console=ttyS0"
+    -append "root=/dev/sda1 console=ttyS0" \
+    -pidfile vm0.pid 2>&1 | tee vm0.log
 
 $ sudo qemu-system-aarch64 \
     -machine virt -cpu cortex-a57 -m 4096 -nographic \
@@ -58,18 +61,46 @@ $ sudo qemu-system-aarch64 \
     -netdev type=tap,id=net0 \
     -device virtio-net-device,netdev=net0,mac=00:da:bc:de:02:11 \
     -kernel hetersec-kernel-arm64/arch/arm64/boot/Image \
-    -append "root=/dev/vda console=ttyAMA0"
+    -append "root=/dev/vda console=ttyAMA0" \
+    -pidfile vm1.pid 2>&1 | tee vm1.log
 ```
-Message layer:
-
+### Kernel message layer:
+Build the message layer kernel modules and copy them to the corresponding VMs:
+```
+$ make -C hetersec-kernel/msg_layer
+$ ARCH="arm64" make -C hetersec-kernel-arm64/msg_layer/
+$ scp hetersec-kernel/msg_layer/msg_socket.ko popcorn@[x86-VM-IP]:~
+$ scp hetersec-kernel/msg_layer/msg_socket.ko popcorn@[arm-VM-IP]:~
+```
+Setup the nodes information (in `/etc/popcorn/nodes`) and install the `msg_socket.ko` on each VM:
+```
+[x86 VM] ~ $ cat /etc/popcorn/nodes
+10.2.0.2
+10.2.1.2
+[arm VM] ~ $ cat /etc/popcorn/nodes
+10.2.0.2
+10.2.1.2
+```
+```
+[x86 VM] ~ $ sudo install msg_socket.ko
+[arm VM] ~ $ sudo install msg_socket.ko
+```
+Now you are ready to run the applications.
 
 ## Test cases
-We have pre-built the test cases for both multi-ISA MTD and MVX.
+We have pre-built the test cases for both multi-ISA MTD and MVX. You can just copy the pre-built binaries (in `test/pre-built`) to your target machines (VMs). More detailed instruction can be found [here](test/pre-built/README.md).
 
 ### Build test case by yourself
-#### Build MTD application binary
+#### Build MTD application binaries
+Please see [instructions](test/mtd/README.md) here.
 
-#### Build MVX application binary
+#### Build MVX application binaries
 1. Make sure the musl-libc is installed on both VMs (assume it is in `/usr/local/musl`)
 2. Clone the `HeterSec/test/mvx` to both VMs.
 3. run `make`
+
+#### Running test cases
+Randomly executing code on nodes with different ISA (multi-ISA MTD):
+![MTD Demo (basic.c)](demo/mtd.gif)
+
+Running code on two ISA-different nodes (multi-ISA MVX):

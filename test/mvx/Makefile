@@ -6,7 +6,7 @@ MUSL-CC = $(PREFIX)$(MUSL-BIN)
 
 CFLAGS	= -std=gnu99
 
-TARGET = basic epoll tiny open loader.so lighttpd
+TARGET = basic epoll tiny open loader.so
 
 all: basic epoll tiny open loader.so
 
@@ -27,7 +27,7 @@ loader.so: mvx_syscall.c
 
 clean:
 	rm -rf $(TARGET) build
-	make -C lighttpd distclean
+#	make -C lighttpd distclean
 
 lighttpd:
 	mkdir -p build ; \

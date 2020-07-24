@@ -99,8 +99,9 @@ Please see [instructions](test/mtd/README.md) here.
 2. Clone the `HeterSec/test/mvx` to both VMs.
 3. run `make`
 
-#### Running test cases
+#### Running test cases (demos)
 Randomly executing code on nodes with different ISA (multi-ISA MTD):
 ![MTD Demo (basic.c)](demo/mtd.gif)
 
 Running code on two ISA-different nodes (multi-ISA MVX):
+![MVX Demo (basic.c)](demo/mvx.gif)

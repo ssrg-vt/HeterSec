@@ -3,29 +3,31 @@
 
 #include "migrate.h"
 
-void remote_func2(int i)
+int pid_main;
+
+void func2(int i)
 {
-	printf("    In %s\n", __func__);
-//	migrate(0, NULL, NULL);
+	printf("[%d] Executing %s, %s.\n", i, __func__,
+			getpid()==pid_main?"locally":"on remote node");
 }
 
-void remote_func1(int i)
+void func1(int i)
 {
-	printf("[%d] Exec remotely.. redirect print back\n", i);
+	printf("[%d] Executing %s, %s.\n", i, __func__,
+			getpid()==pid_main?"locally":"on remote node");
 	sleep(2);
-	remote_func2(i);
-	printf("    In %s.\n", __func__);
-//	migrate(0, NULL, NULL);
+	func2(i);
 }
 
 int main(int argc, char *argv[])
 {
 	int i;
 
-	printf("[%d] Before migration.\n", getpid());
+	pid_main = getpid();
+	printf("pid on x86 node %d.\n", pid_main);
 
 	for (i = 0; i < 10; i++) {
-		remote_func1(i);
+		func1(i);
 	}
 	return 0;
 }

@@ -3,7 +3,7 @@
 ## Overview
 HeterSec is a framework that enables application software diversification using ISA heterogeneity. It runs diversified processes on top of off-the-shelf commodity machines of different ISAs (e.g., x86-64, AArch64). HeterSec hides the complex differences between ISAs including that between instructions, memory layout, registers, and ABIs, among others, and makes it easier to build and launch ISA-diversified application instances. To demonstrate HeterSec's objectives, the project has developed prototypes of two techniques that use ISA heterogeneity for software diversification as proofs-of-concept: multi-ISA-based moving target defense (MTD) and multi-ISA-based multi-version execution (MVX).
 
-The work is published at RAID 2020.
+The work is published at RAID 2020 ([raid20.pdf](https://www.ssrg.ece.vt.edu/papers/raid20.pdf)).
 
 ---
 ## Requirement
@@ -88,20 +88,23 @@ Setup the nodes information (in `/etc/popcorn/nodes`) and install the `msg_socke
 Now you are ready to run the applications.
 
 ## Test cases
-We have pre-built the test cases for both multi-ISA MTD and MVX. You can just copy the pre-built binaries (in `test/pre-built`) to your target machines (VMs). More detailed instruction can be found [here](test/pre-built/README.md).
+### Build MTD application binaries
+Please see detailed instructions [here](test/mtd/README.md).
 
-### Build test case by yourself
-#### Build MTD application binaries
-Please see [instructions](test/mtd/README.md) here.
+Alternatively, we have also pre-built the test cases for multi-ISA MTD. You can just copy the pre-built binaries (in `test/pre-built`) to your target machines (VMs). More detailed instruction can be found [here](test/mtd/pre-built/README.md).
 
-#### Build MVX application binaries
-1. Make sure the musl-libc is installed on both VMs (assume it is in `/usr/local/musl`)
-2. Clone the `HeterSec/test/mvx` to both VMs.
+To start the MTD process, we need to configure a list of potential migration points. More instructions can be found [here](test/mtd/README.md#create-configuration-files-to-control-the-execution-randomness).
+### Build MVX application binaries
+1. Make sure the musl-libc (from the *same source code*) is installed on both VMs (assume it is in `/usr/local/musl`)
+2. Copy the `HeterSec/test/mvx` to both VMs.
 3. run `make`
 
-#### Running test cases (demos)
-Randomly executing code on nodes with different ISA (multi-ISA MTD):
+### Running test cases (demos)
+- Randomly executing code on nodes with different ISA (multi-ISA MTD):
+
 ![MTD Demo (basic.c)](demo/mtd.gif)
 
-Running code on two ISA-different nodes (multi-ISA MVX):
+- Running code on two ISA-different nodes (multi-ISA MVX):
+
+To start the MVX variants, you need to use a issue a HeterSec system call to make the process as MVX process. We prepared a shared library, you can run the variant from the ARM node by executing `LD_PRELOAD=./loader.so <bin>`
 ![MVX Demo (basic.c)](demo/mvx.gif)

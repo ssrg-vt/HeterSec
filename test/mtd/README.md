@@ -1,5 +1,6 @@
 This folder contains the Moving Target Defense (MTD) test cases. To compile those test cases, you need to install the popcorn-compiler ([secure-popcorn](https://github.com/ssrg-vt/popcorn-compiler/tree/secure-popcorn) branch). Alternatively, you can also use a pre-built popcorn-compiler docker image.
 
+# Build the popcorn/HeterSec compatible binary from source code
 ## Abtaining the popcorn-compiler
 You can choose to use one of the following ways to abtain the popcorn-compiler.
 ### Build the popcorn-compiler (secure-popcorn branch)
@@ -138,6 +139,50 @@ Disassembl an arm64 file:
 ```
 [arm VM] ~/basic $ cat migrate_x86.conf
 501134
+```
+
+# Use the pre-built binaries
+```
+$ scp -r test/mtd/pre-built/ popcorn@[x86 VM IP]:~
+$ scp -r test/mtd/pre-built/ popcorn@[arm VM IP]:~
+[arm VM] ~/pre-built $ ./setup.sh
+Preparing arm binaires:
+bt
+...
+Done
+[x86 VM] ~/pre-built $ ./setup.sh
+Preparing x86 binaires:
+bt
+...
+Done
+[x86 VM] ~/pre-built $ ls basic
+basic  basic_aarch64  basic_x86-64  migrate_arm64.conf  migrate_x86.conf  random.conf
+[x86 VM] ~/pre-built/basic $ ./basic
+```
+# Running the test cases
+```
+[x86 VM] ~/pre-built/basic $ ./basic
+Total number active x86 check migrates: 2
+Total number active arm check migrates: 2
+Percentage of migrate from x86 to arm: 50
+Percentage of migrate from arm to x86: 60
+pid on x86 node 719.
+[0] Executing func1, on remote node.
+[0] Executing func2, on remote node.
+...
+
+[x86 VM] ~/pre-built/nginx $ ./nginx -p ~/nginx-root
+Total number active x86 check migrates: 1
+Total number active arm check migrates: 0
+Percentage of migrate from x86 to arm: 50
+Percentage of migrate from arm to x86: 100
+
+[x86 VM] ~/pre-built/npb $ ./bt                   
+ NAS Parallel Benchmarks (NPB3.3-SER-C) - BT Benchmark
+...
+[x86 VM] ~/pre-built/npb $ ./is                   
+ NAS Parallel Benchmarks (NPB3.3-SER-C) - BT Benchmark
+...
 ```
 
 ## A sample run trace of basic

@@ -91,7 +91,7 @@ Now you are ready to run the applications.
 ### Build MTD application binaries
 Please see detailed instructions [here](test/mtd/README.md).
 
-Alternatively, we have also pre-built the test cases for multi-ISA MTD. You can just copy the pre-built binaries (in `test/pre-built`) to your target machines (VMs). More detailed instruction can be found [here](test/mtd/pre-built/README.md).
+Alternatively, we have also pre-built the test cases for multi-ISA MTD. You can just copy the pre-built binaries (in `test/pre-built`) to your target machines (VMs). More detailed instruction can be found [here](test/mtd/README.md#use-the-pre-built-binaries).
 
 To start the MTD process, we need to configure a list of potential migration points. More instructions can be found [here](test/mtd/README.md#create-configuration-files-to-control-the-execution-randomness).
 ### Build MVX application binaries

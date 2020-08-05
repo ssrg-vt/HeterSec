@@ -44,7 +44,7 @@ $ ARCH="arm64" make -C hetersec-kernel-arm64 -j8
 ```
 
 ### Boot the VMs
-Boot the VMs with newly built kernel:
+Boot the VMs with newly built kernels (the following scripts are used in the [tap network](https://github.com/ssrg-vt/popcorn-kernel/wiki/VM-network-using-tap) setting; if you use the [bridge](https://github.com/ssrg-vt/popcorn-kernel/wiki/VM-Setup#set-up-the-host-network-interface), please follow the QEMU boot script [here](https://github.com/ssrg-vt/popcorn-kernel/wiki/VM-Setup#set-up-x86-virtual-machine) and [here](https://github.com/ssrg-vt/popcorn-kernel/wiki/VM-Setup#set-up-arm-virtual-machine)):
 ```
 $ sudo qemu-system-x86_64 \
     -enable-kvm -cpu host -smp 2 -m 4096 -no-reboot -nographic \

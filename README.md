@@ -70,7 +70,7 @@ Build the message layer kernel modules and copy them to the corresponding VMs:
 $ make -C hetersec-kernel/msg_layer
 $ ARCH="arm64" make -C hetersec-kernel-arm64/msg_layer/
 $ scp hetersec-kernel/msg_layer/msg_socket.ko popcorn@[x86-VM-IP]:~
-$ scp hetersec-kernel/msg_layer/msg_socket.ko popcorn@[arm-VM-IP]:~
+$ scp hetersec-kernel-arm64/msg_layer/msg_socket.ko popcorn@[arm-VM-IP]:~
 ```
 Setup the nodes information (in `/etc/popcorn/nodes`) and install the `msg_socket.ko` on each VM:
 ```
@@ -81,9 +81,10 @@ Setup the nodes information (in `/etc/popcorn/nodes`) and install the `msg_socke
 10.2.0.2
 10.2.1.2
 ```
+Install the kernel module on each VM:
 ```
-[x86 VM] ~ $ sudo install msg_socket.ko
-[arm VM] ~ $ sudo install msg_socket.ko
+[x86 VM] ~ $ sudo insmod msg_socket.ko
+[arm VM] ~ $ sudo insmod msg_socket.ko
 ```
 Now you are ready to run the applications.
 

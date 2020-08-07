@@ -13,7 +13,7 @@ i) Install dependency packages:
 ```
 $ sudo apt-get update
 $ sudo apt-get install build-essential libssl-dev libncursesw5-dev git curl bc bridge-utils
-$ sudo apt-get install qemu-system-x86 qemu-system-arm
+$ sudo apt-get install qemu-system-x86 qemu-system-arm gcc-aarch64-linux-gnu
 ```
 ii) Download QEMU images:
 - x86 VM image (4GB): https://drive.google.com/open?id=0B7RfKPGm2YZsaURxTVh5ZTMyTk0

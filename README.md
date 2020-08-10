@@ -49,7 +49,7 @@ Boot the VMs with newly built kernels (the following scripts are used in the [ta
 $ sudo qemu-system-x86_64 \
     -enable-kvm -cpu host -smp 2 -m 4096 -no-reboot -nographic \
     -drive id=root,media=disk,file=x86.img \
-    -net nic,macaddr=00:da:bc:de:00:13 -net tap \
+    -net nic,macaddr=00:da:bc:de:00:13 -net tap,ifname=tap0,script=no \
     -kernel hetersec-kernel/arch/x86/boot/bzImage \
     -append "root=/dev/sda1 console=ttyS0" \
     -pidfile vm0.pid 2>&1 | tee vm0.log
@@ -58,7 +58,7 @@ $ sudo qemu-system-aarch64 \
     -machine virt -cpu cortex-a57 -m 4096 -nographic \
     -drive id=root,if=none,media=disk,file=arm.img \
     -device virtio-blk-device,drive=root \
-    -netdev type=tap,id=net0 \
+    -netdev type=tap,id=net0,ifname=tap1 \
     -device virtio-net-device,netdev=net0,mac=00:da:bc:de:02:11 \
     -kernel hetersec-kernel-arm64/arch/arm64/boot/Image \
     -append "root=/dev/vda console=ttyAMA0" \

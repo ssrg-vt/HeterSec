@@ -13,7 +13,7 @@ i) Install dependency packages:
 ```
 $ sudo apt-get update
 $ sudo apt-get install build-essential libssl-dev libncursesw5-dev git curl bc bridge-utils
-$ sudo apt-get install qemu-system-x86 qemu-system-arm
+$ sudo apt-get install qemu-system-x86 qemu-system-arm gcc-aarch64-linux-gnu
 ```
 ii) Download QEMU images:
 - HeterSec_VM_images.tar.gz (610MB downloaded; 4GB `x86.img`, 2GB `arm.img` after extract the tarball)
@@ -52,7 +52,7 @@ $ ARCH="arm64" make -C hetersec-kernel-arm64 -j8
 ```
 
 ### Boot the VMs
-Boot the VMs with newly built kernel:
+Boot the VMs with newly built kernels (the following scripts are used in the [tap network](https://github.com/ssrg-vt/popcorn-kernel/wiki/VM-network-using-tap) setting; if you use the [bridge](https://github.com/ssrg-vt/popcorn-kernel/wiki/VM-Setup#set-up-the-host-network-interface), please follow the QEMU boot script [here](https://github.com/ssrg-vt/popcorn-kernel/wiki/VM-Setup#set-up-x86-virtual-machine) and [here](https://github.com/ssrg-vt/popcorn-kernel/wiki/VM-Setup#set-up-arm-virtual-machine)):
 ```
 $ sudo qemu-system-x86_64 \
     -enable-kvm -cpu host -smp 2 -m 4096 -no-reboot -nographic \
@@ -78,7 +78,7 @@ Build the message layer kernel modules and copy them to the corresponding VMs:
 $ make -C hetersec-kernel/msg_layer
 $ ARCH="arm64" make -C hetersec-kernel-arm64/msg_layer/
 $ scp hetersec-kernel/msg_layer/msg_socket.ko popcorn@[x86-VM-IP]:~
-$ scp hetersec-kernel/msg_layer/msg_socket.ko popcorn@[arm-VM-IP]:~
+$ scp hetersec-kernel-arm64/msg_layer/msg_socket.ko popcorn@[arm-VM-IP]:~
 ```
 Setup the nodes information (in `/etc/popcorn/nodes`) and install the `msg_socket.ko` on each VM:
 ```
@@ -89,9 +89,10 @@ Setup the nodes information (in `/etc/popcorn/nodes`) and install the `msg_socke
 10.2.0.2
 10.2.1.2
 ```
+Install the kernel module on each VM:
 ```
-[x86 VM] ~ $ sudo install msg_socket.ko
-[arm VM] ~ $ sudo install msg_socket.ko
+[x86 VM] ~ $ sudo insmod msg_socket.ko
+[arm VM] ~ $ sudo insmod msg_socket.ko
 ```
 Now you are ready to run the applications.
 

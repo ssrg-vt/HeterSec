@@ -16,12 +16,20 @@ $ sudo apt-get install build-essential libssl-dev libncursesw5-dev git curl bc b
 $ sudo apt-get install qemu-system-x86 qemu-system-arm
 ```
 ii) Download QEMU images:
+- HeterSec_VM_images.tar.gz (610MB downloaded; 4GB `x86.img`, 2GB `arm.img` after extract the tarball)
+https://drive.google.com/file/d/1IPHnREc_J2CSbe186u0pvh6XY7Pd4Yiu/view?usp=sharing
+<!--
 - x86 VM image (4GB): https://drive.google.com/open?id=0B7RfKPGm2YZsaURxTVh5ZTMyTk0
 - arm VM image (2GB): https://drive.google.com/open?id=0B7RfKPGm2YZsaF9rdkZTLVAxX3M
+-->
 
 iii) Configure host network
 
-Follow this [link](https://github.com/ssrg-vt/popcorn-kernel/wiki/VM-Setup#set-up-the-host-network-interface) to set up the host network.
+Use the [init_tap_network.sh](https://github.com/ssrg-vt/HeterSec/scripts/init_tap_network.sh) script to set up the `tap0`/`tap1` interfaces and enable IP forwarding on the host machine (`eth0` is your ethernet NIC name):
+```
+$ ./init_tap_network.sh eth0
+```
+More detail can be found [here](https://github.com/ssrg-vt/HeterSec/wiki/Set-up-VM-network-using-tap) to set up the host network.
 
 ---
 ## Setup
@@ -49,7 +57,7 @@ Boot the VMs with newly built kernel:
 $ sudo qemu-system-x86_64 \
     -enable-kvm -cpu host -smp 2 -m 4096 -no-reboot -nographic \
     -drive id=root,media=disk,file=x86.img \
-    -net nic,macaddr=00:da:bc:de:00:13 -net tap \
+    -net nic,macaddr=00:da:bc:de:00:13 -net tap,ifname=tap0,script=no \
     -kernel hetersec-kernel/arch/x86/boot/bzImage \
     -append "root=/dev/sda1 console=ttyS0" \
     -pidfile vm0.pid 2>&1 | tee vm0.log
@@ -58,7 +66,7 @@ $ sudo qemu-system-aarch64 \
     -machine virt -cpu cortex-a57 -m 4096 -nographic \
     -drive id=root,if=none,media=disk,file=arm.img \
     -device virtio-blk-device,drive=root \
-    -netdev type=tap,id=net0 \
+    -netdev type=tap,id=net0,ifname=tap1 \
     -device virtio-net-device,netdev=net0,mac=00:da:bc:de:02:11 \
     -kernel hetersec-kernel-arm64/arch/arm64/boot/Image \
     -append "root=/dev/vda console=ttyAMA0" \

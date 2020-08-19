@@ -45,9 +45,9 @@ $ cp -r hetersec-kernel hetersec-kernel-arm64
 ```
 Build the x86_64 kernel and arm64 kernel respectively:
 ```
-$ cp hetersec-kernel/kernel/popcorn/configs/config-x86_64-qemu hetersec-kernel/.config
+$ cp hetersec-kernel/kernel/popcorn/configs/config-hs-x86_64-qemu hetersec-kernel/.config
 $ make -C hetersec-kernel -j8
-$ cp hetersec-kernel-arm64/kernel/popcorn/configs/config-arm64-qemu hetersec-kernel-arm64/.config
+$ cp hetersec-kernel-arm64/kernel/popcorn/configs/config-hs-arm64-qemu hetersec-kernel-arm64/.config
 $ ARCH="arm64" make -C hetersec-kernel-arm64 -j8
 ```
 

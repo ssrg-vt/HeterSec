@@ -25,7 +25,7 @@ https://drive.google.com/file/d/1IPHnREc_J2CSbe186u0pvh6XY7Pd4Yiu/view?usp=shari
 
 iii) Configure host network
 
-Use the [init_tap_network.sh](https://github.com/ssrg-vt/HeterSec/scripts/init_tap_network.sh) script to set up the `tap0`/`tap1` interfaces and enable IP forwarding on the host machine (`eth0` is your ethernet NIC name):
+Use the [init_tap_network.sh](https://github.com/ssrg-vt/HeterSec/blob/master/scripts/init_tap_network.sh) script to set up the `tap0`/`tap1` interfaces and enable IP forwarding on the host machine (`eth0` is your ethernet NIC name):
 ```
 $ ./init_tap_network.sh eth0
 ```

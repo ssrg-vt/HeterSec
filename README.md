@@ -16,12 +16,13 @@ $ sudo apt-get install build-essential libssl-dev libncursesw5-dev git curl bc b
 $ sudo apt-get install qemu-system-x86 qemu-system-arm gcc-aarch64-linux-gnu
 ```
 ii) Download QEMU images:
-- HeterSec_VM_images.tar.gz (610MB downloaded; 4GB `x86.img`, 2GB `arm.img` after extract the tarball)
+- HeterSec_VM_images.tar.gz (610MB downloaded; 4GB `x86.img`, 2GB `arm.img` after extract the tarball).
 https://drive.google.com/file/d/1IPHnREc_J2CSbe186u0pvh6XY7Pd4Yiu/view?usp=sharing
 <!--
 - x86 VM image (4GB): https://drive.google.com/open?id=0B7RfKPGm2YZsaURxTVh5ZTMyTk0
 - arm VM image (2GB): https://drive.google.com/open?id=0B7RfKPGm2YZsaF9rdkZTLVAxX3M
 -->
+The username/password for the VMs: `popcorn/popcorn`.
 
 iii) Configure host network
 
